@@ -1,18 +1,12 @@
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.AzureAD.UI;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
+using ClrCodingGolf.Hubs;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.UI;
 
 namespace ClrCodingGolf
 {
@@ -29,19 +23,24 @@ namespace ClrCodingGolf
         public void ConfigureServices(IServiceCollection services)
         {
 #if ENABLE_AUTHENTICATION
-            services.AddAuthentication(AzureADDefaults.AuthenticationScheme)
-                .AddAzureAD(options => Configuration.Bind("AzureAd", options));
+            services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+                .AddMicrosoftIdentityWebApp(Configuration.GetSection("AzureAd"));
 #endif
 
-            services.AddRazorPages().AddMvcOptions(options =>
-            {
+            services.AddControllers();
+            services.AddSignalR();
+
 #if ENABLE_AUTHENTICATION
-                var policy = new AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser()
-                    .Build();
-                options.Filters.Add(new AuthorizeFilter(policy));
-#endif
+            services.AddAuthorization(options =>
+            {
+                // By default, all incoming requests will be authorized according to the default policy
+                options.FallbackPolicy = options.DefaultPolicy;
             });
+#endif
+
+            services.AddRazorPages()
+                .AddMvcOptions(options => { })
+                .AddMicrosoftIdentityUI();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -72,6 +71,7 @@ namespace ClrCodingGolf
             {
                 endpoints.MapRazorPages();
                 endpoints.MapControllers();
+                endpoints.MapHub<SubmitHub>("/submit");
             });
         }
     }

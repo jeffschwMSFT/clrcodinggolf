@@ -1,0 +1,3 @@
+[submodule "ccm"]
+	path = ccm
+	url = https://github.com/jonasblunck/ccm

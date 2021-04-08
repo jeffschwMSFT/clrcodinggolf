@@ -1,10 +1,390 @@
 ﻿@page
-@model IndexModel
-@{
-    ViewData["Title"] = "Home page";
-}
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://docs.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/3.1.7/signalr.min.js"></script>
+
+<style type="text/css"> 
+    body {
+		background-color: #000
+	}
+    input {
+        font-family: courier, monospace;
+        color: #0f0;
+        font-size: 14px;
+        background-color: #000
+    }
+    textarea {
+        font-family: courier, monospace;
+        color: #fff;
+        font-size: 14px;
+        background-color: #000 
+    }
+    div {
+        font-family: courier, monospace;
+        color: #0f0;
+        font-size: 14px;
+        background-color: #000;
+    }
+	pre {
+        font-family: courier, monospace;
+        color: #fff;
+        font-size: 14px;
+        background-color: #000;
+    }
+</style>
+
+<div class="page" style="height: 100%; width: 100%;">
+	<div style="font-size:30px;">CODINGGOLF</div>
+	<br />
+    <div id="setupScene" style="visibility:visible;">
+        <!-- this page is empty as there is no configuration -->
+		<div style="color:#f00;font-size:24px;">If you are seeing this message, something has gone wrong :(</div>
+    </div>
+	<div id="chooseNameScene" style="visibility:hidden;">
+		<div style="color:#fff">Choose a username to join the game</div>
+        <input type="text" id="userName" /> <button onclick="changeScene(2)">join</button>
+    </div>
+	<div id="gameScene" style="visibility:hidden;">
+		<div style="width:100%;">
+			<div style="display:inline;">clrcodinggolf@@</div><div name="userNameLabel" style="display:inline;"></div><div style="color:#fff;display:inline;">:</div><div style="color:#88f;display:inline;">~</div><div style="color:#fff;display:inline;">$&nbsp</div><div style="color:#fff;display:inline;">add source below and submit to analyze</div>
+			<br />
+			<div style="display:inline;">clrcodinggolf@@</div><div name="userNameLabel" style="display:inline;"></div><div style="color:#fff;display:inline;">:</div><div style="color:#88f;display:inline;">~</div><div style="color:#fff;display:inline;">$&nbsp</div><div style="color:#fff;display:inline;"><i>(submitting shares your solution with other participants)</i></div>
+			<br />
+			<div style="display:inline;">clrcodinggolf@@</div><div name="userNameLabel" style="display:inline;"></div><div style="color:#fff;display:inline;">:</div><div style="color:#88f;display:inline;">~</div><div style="color:#fff;display:inline;">$&nbsp</div><div style="color:#fff;display:inline;"><i>(lower scores are better - the values in ()'s are the sub scores)</i></div>
+			<br />
+			<textarea id="codeTextArea" style="width:100%;"></textarea>
+			<br />
+			<button onclick="sendCode()">submit</button> <button onclick="sendClear()" id="clearButton" style="visibility:hidden">start new round</button>
+			<br />
+			<div id="codeResultSection1" style="visibility:hidden;">
+				<div style="display:inline;">clrcodinggolf@@</div><div name="userNameLabel" style="display:inline;"></div><div style="color:#fff;display:inline;">:</div><div style="color:#88f;display:inline;">~</div><div style="color:#fff;display:inline;">$&nbsp</div><div style="color:#fff;display:inline;" id="codeResult1"></div>
+				<br />
+			</div>
+			<div id="codeResultSection2" style="visibility:hidden;">
+				<div style="display:inline;">clrcodinggolf@@</div><div name="userNameLabel" style="display:inline;"></div><div style="color:#fff;display:inline;">:</div><div style="color:#88f;display:inline;">~</div><div style="color:#fff;display:inline;">$&nbsp</div><div style="color:#fff;display:inline;" id="codeResult2"></div>
+				<br />
+			</div>
+			<div id="codeResultSection3" style="visibility:hidden;">
+				<div style="display:inline;">clrcodinggolf@@</div><div name="userNameLabel" style="display:inline;"></div><div style="color:#fff;display:inline;">:</div><div style="color:#88f;display:inline;">~</div><div style="color:#fff;display:inline;">$&nbsp</div><div style="color:#fff;display:inline;" id="codeResult3"></div>
+				<br />
+			</div>
+			<div id="errorMessage" style="color:#f00;"></div>
+			<br />
+		</div>
+		<div style="width:100%;">
+			<div style="font-size:24px;">SCORES</div>
+			<div id="fullScoreList"></div>
+		</div>
+	</div>
 </div>
+
+<script>
+	// hub connection
+	var hubConnection;
+	var userDictionary = {};
+	var isOwner = false;
+
+	// connection logic
+	async function startHubConnection() {  
+		try {
+			await hubConnection.start();
+			console.log("connected to server");
+		} catch (err) {
+			console.log(err);
+			setTimeout(startHubConnection, 5000);
+		}
+	}
+
+	//
+	// main logic
+	//
+	function changeScene(current) {
+		// 0 - setup game
+		// 1 - choose username
+		// 2 - game
+
+		// change to choose username
+		if (current == 1) {
+			// toggle the scenes
+			document.getElementById('setupScene').style.visibility  = "hidden";
+			document.getElementById('setupScene').style.display = "none";
+			document.getElementById('chooseNameScene').style.visibility  = "visible";
+            document.getElementById('gameScene').style.visibility  = "hidden";
+		}
+
+		// change to game
+		if (current == 2) {
+			var user = document.getElementById('userName').value;
+
+			// ensure the name is valid
+			if (!user || user.length <= 2 || user.indexOf(',') >= 0 || user.indexOf('<') >= 0 || user.indexOf('>') >= 0 || user.indexOf(':') >= 0) {
+				document.getElementById('userName').value = "choose your username";
+				return;
+			}
+
+			// join the game
+			sendJoinGame();
+
+			// set the username
+			var userNameLabels = document.getElementsByName('userNameLabel');
+			userNameLabels.forEach((elem) => {
+				elem.textContent = user;
+			});
+			
+			// toggle the scenes
+			document.getElementById('setupScene').style.visibility  = "hidden";
+			document.getElementById('setupScene').style.display = "none";
+			document.getElementById('chooseNameScene').style.visibility  = "hidden";
+			document.getElementById('chooseNameScene').style.display  = "none";
+            document.getElementById('gameScene').style.visibility  = "visible";
+        }
+    }
+
+	function addResult(text)
+	{
+		// cascade the results down 1,2,3
+		var section1 = document.getElementById('codeResultSection1');
+		console.log(section1.style.visibility);
+		if (section1.style.visibility === "hidden")
+		{
+			console.log("starting result section 1");
+			// set first result
+			var result1 = document.getElementById('codeResult1');
+			result1.innerText = text;
+			section1.style.visibility = "visible";
+		}
+		else
+		{
+			var section2 = document.getElementById('codeResultSection2');
+			var result1 = document.getElementById('codeResult1');
+			var result2 = document.getElementById('codeResult2');
+			if (section2.style.visibility === "hidden")
+			{
+				console.log("starting result section 2");
+				// move the first result to the second
+				result2.innerText = result1.innerText;
+				result1.innerText = text;
+				section2.style.visibility = "visible";
+			}
+			else
+			{
+				console.log("starting result section 3");
+				var section3 = document.getElementById('codeResultSection3');
+				var result3 = document.getElementById('codeResult3');
+				// move the result down
+				result3.innerText = result2.innerText;
+				result2.innerText = result1.innerText;
+				result1.innerText = text;
+				section3.style.visibility = "visible";
+			}
+		}
+	}
+
+	function initialize() {
+		// check if we have a group
+		if (window.location.search.length <= 4) {
+			// choose a group and restart
+			var group = Math.random().toString(16).substr(2, 8);
+			console.log(window.location);
+			window.location.assign(window.location.href + "?" + group);
+			return;
+		}
+
+		// startup connection
+		hubConnection = new signalR.HubConnectionBuilder()
+			.withUrl("/submit")
+			.configureLogging(signalR.LogLevel.Information)
+				.build();
+
+		// connect all the receive functions
+		hubConnection.on("ReceiveParticipants", receiveParticipants);
+		hubConnection.on("ReceiveMyResult", receiveMyResult);
+		hubConnection.on("ReceiveMessage", receiveMessage);
+		hubConnection.on("ReceiveCode", receiveCode);
+		hubConnection.on("ReceiveIsOwner", receiveIsOwner);
+		hubConnection.on("ReceiveClear", receiveClear);
+
+		// reconnect if closed
+		hubConnection.onclose(startHubConnection);
+
+		// start
+		startHubConnection();
+
+		// change to choose your username
+		document.getElementById('userName').onkeydown = function(e) { if(e.keyCode == 13) {changeScene(2);} };
+		changeScene(1);
+	}
+
+	function displayScores() {
+		var output = document.getElementById('fullScoreList');
+		output.innerHTML = "";
+
+		// sort by score
+		var byscore = [];
+		for(key in userDictionary) {
+			byscore.push([key, userDictionary[key].score]);
+		}
+		byscore.sort(function(a, b) {
+			return a[1] - b[1];
+		});
+
+		// display
+		for(var i=0; i<byscore.length; i++) {
+			var key = byscore[i][0];
+			output.innerHTML += (i+1) + ") " + userDictionary[key].user + " (" + userDictionary[key].score + ")" + " <button style='background-color:#000;color:#fff;' onclick='sendUpdatedCode(\"" + key + "\")'>&raquo;</button> <br>";
+			output.innerHTML += "<pre>" + userDictionary[key].code + "</pre>";
+		}
+	}
+
+	//
+	// communicate with server
+	//
+
+	// send
+	async function sendCode() {
+		var code = document.getElementById('codeTextArea').value;
+		var user = document.getElementById('userName').value;
+		var group = window.location.search.substring(1);
+
+		// do not accept empty text
+		if (!code)
+		{
+			return;
+		}
+
+		if (code.length > 24000) {
+			// the signalr connection will fail with inputs that are too large
+			receiveMessage("truncated code to fix max of 24k charaters");
+			code = code.substring(0, 24000);
+		}
+
+		try {
+			await hubConnection.invoke("SendCode", group, user, code);
+		} catch (err) {
+			console.error(err);
+		}
+
+		return true;
+	}
+
+	async function sendJoinGame() {
+		var group = window.location.search.substring(1);
+		var user = document.getElementById('userName').value;
+
+		try {
+			await hubConnection.invoke("SendJoinGame", group, user);
+		} catch (err) {
+			console.error(err);
+		}
+	}
+
+	async function sendUpdatedCode(id) {
+		var group = window.location.search.substring(1);
+
+		try {
+			await hubConnection.invoke("SendUpdatedCode", group, id);
+		} catch (err) {
+			console.error(err);
+		}
+	}
+
+	async function sendClear() {
+		if (!isOwner) return;
+
+		var group = window.location.search.substring(1);
+
+		try {
+			await hubConnection.invoke("SendClear", group);
+		} catch (err) {
+			console.error(err);
+		}
+	}
+
+	// receive
+
+	function receiveCode(key, user, code, score) {
+		// add user if necessary (this should not be necessary)
+		if (userDictionary[key] === undefined) {
+			// add the user
+			userDictionary[key] = {
+				"user": user,
+				"code": code,
+				"score": rating
+			};
+		}
+
+		// update
+		userDictionary[key].code = code;
+		userDictionary[key].score = score;
+
+		// update the scores
+		displayScores();
+    }
+
+    function receiveMyResult(metric1, metric2, metric3, metric4, rating) {
+		var d = new Date();
+		addResult("score = " + rating + " (" + metric1 + ":" + metric2 + ":" + metric3 + ":" + metric4 + ")" + " @@ " + d.toLocaleString());
+    }
+
+	function receiveParticipants(json) {
+		// check which users we are currently tracking
+		var active = {};
+		for(key in userDictionary) {
+			active[key] = 0;
+		}
+
+		// walk current participants
+		var obj = JSON.parse(json);
+		obj.forEach((user) => {
+			var parts = user.split(',', 3);
+			if (parts.length == 3)
+			{
+				// check if this is a new user
+				if (userDictionary[parts[0]] === undefined) {
+					// add the user
+					userDictionary[parts[0]] = {
+						"user": parts[1],
+						"code": "",
+						"score": parts[2]
+					};
+				}
+
+				// mark this participant as active
+				active[parts[0]] = 1;
+			}
+		});
+
+		// remove inactive users
+		for(key in active) {
+			if (active[key] == 0) {
+				delete userDictionary[key];
+			}
+		}
+
+		// update the score sheet
+		displayScores();
+	}
+
+	function receiveMessage(msg) {
+		document.getElementById('errorMessage').innerText = msg;
+		console.error(msg);
+	}
+
+	function receiveIsOwner() {
+		isOwner = true;
+		document.getElementById('clearButton').style.visibility = "visible";
+	}
+
+	function receiveClear() {
+		// clear all the code and scores
+		for(key in userDictionary) {
+			userDictionary[key].code = "";
+			userDictionary[key].score = 0;
+		}
+
+		// update the score sheet
+		displayScores();
+	}
+
+	// do the initialization
+	initialize();
+</script>
