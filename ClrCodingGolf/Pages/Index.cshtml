@@ -52,7 +52,9 @@
 			<br />
 			<textarea id="codeTextArea" style="width:100%;"></textarea>
 			<br />
-			<button onclick="sendCode()">submit</button> <button onclick="sendClear()" id="clearButton" style="visibility:hidden">start new round</button>
+			<button onclick="sendCode()">submit</button> 
+			<button onclick="sendParticipants()" id="participantsButton" style="visibility:hidden">update participant list</button>
+			<button onclick="sendClear()" id="clearButton" style="visibility:hidden">start new round</button>
 			<br />
 			<div id="codeResultSection1" style="visibility:hidden;">
 				<div style="display:inline;">clrcodinggolf@@</div><div name="userNameLabel" style="display:inline;"></div><div style="color:#fff;display:inline;">:</div><div style="color:#88f;display:inline;">~</div><div style="color:#fff;display:inline;">$&nbsp</div><div style="color:#fff;display:inline;" id="codeResult1"></div>
@@ -297,6 +299,18 @@
 			console.error(err);
 		}
 	}
+	
+	async function sendParticipants() {
+		if (!isOwner) return;
+
+		var group = window.location.search.substring(1);
+
+		try {
+			await hubConnection.invoke("SendParticipants", group);
+		} catch (err) {
+			console.error(err);
+		}
+	}
 
 	// receive
 
@@ -371,6 +385,7 @@
 	function receiveIsOwner() {
 		isOwner = true;
 		document.getElementById('clearButton').style.visibility = "visible";
+		document.getElementById('participantsButton').style.visibility = "visible";
 	}
 
 	function receiveClear() {
