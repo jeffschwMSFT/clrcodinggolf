@@ -63,9 +63,16 @@ namespace ClrCodingGolf.Hubs
                 var users = groupdetails.GetUsers();
                 if (users != null && users.Count > 0)
                 {
+                    // send the updated list of users
                     var allusers = users.Select(u => $"{u.ConnectionId},{u.UserName},{u.Rating}").ToList();
                     var json = System.Text.Json.JsonSerializer.Serialize(allusers);
                     await Clients.Group(groupdetails.Name).SendAsync("ReceiveParticipants", json);
+
+                    // send the code to everyone (expensive)
+                    foreach(var userdetails in users)
+                    {
+                        await Clients.Caller.SendAsync("ReceiveCode", userdetails.ConnectionId, userdetails.UserName, userdetails.Code, userdetails.Rating);
+                    }
                 }
             }
         }
@@ -80,19 +87,18 @@ namespace ClrCodingGolf.Hubs
                 {
                     // run code analysis
                     CodeMetrics metrics = default(CodeMetrics);
-                    float rating = Single.MaxValue;
+                    userdetails.Rating = Single.MaxValue;
 
                     try
                     {
                         metrics = ClrCodingGolf.Analysis.CodeAnalysis.Analyze(code, injectIntrigue: true);
                         System.Diagnostics.Debug.WriteLine($"{metrics.Bytes} {metrics.Lines} {metrics.CCM} {metrics.Characters}");
-                        rating = (metrics.Bytes * 0.35f) + (metrics.Lines * 0.05f) + (metrics.CCM * 0.5f) + (metrics.Characters * 0.1f);
-                        if (rating < 0) rating = 0;
+                        userdetails.Rating = (metrics.Bytes * 0.35f) + (metrics.Lines * 0.05f) + (metrics.CCM * 0.5f) + (metrics.Characters * 0.1f);
+                        if (userdetails.Rating < 0) userdetails.Rating = 0;
 
                         // retain the code and rating
                         userdetails.Attempts++;
-                        userdetails.Code = code;
-                        userdetails.Rating = rating;
+                        userdetails.Code = Sanitize(code);
                     }
                     catch (Exception e)
                     {
@@ -100,10 +106,10 @@ namespace ClrCodingGolf.Hubs
                     }
 
                     // share result back
-                    await Clients.Caller.SendAsync("ReceiveMyResult", metrics.Bytes, metrics.Lines, metrics.CCM, metrics.Characters, rating);
+                    await Clients.Caller.SendAsync("ReceiveMyResult", metrics.Bytes, metrics.Lines, metrics.CCM, metrics.Characters, userdetails.Rating);
 
                     // share with all clients
-                    await Clients.All.SendAsync("ReceiveCode", Context.ConnectionId, user, code, rating);
+                    await Clients.All.SendAsync("ReceiveCode", Context.ConnectionId, user, userdetails.Code, userdetails.Rating);
                 }
                 else
                 {
@@ -127,7 +133,7 @@ namespace ClrCodingGolf.Hubs
                 if (groupdetails.TryGetUser(connectionid, out UserDetails userdetails))
                 {
                     // share with all clients
-                    await Clients.Caller.SendAsync("ReceiveCode", connectionid, userdetails.UserName, userdetails.Code, userdetails.Rating);
+                    await Clients.Caller.SendAsync("ReceiveCode", userdetails.ConnectionId, userdetails.UserName, userdetails.Code, userdetails.Rating);
                 }
                 else
                 {
@@ -364,6 +370,12 @@ namespace ClrCodingGolf.Hubs
             private static ReaderWriterLockSlim ConnectionsLock = new ReaderWriterLockSlim();
             private static Dictionary<string /*group*/, GroupDetails> Connections = new Dictionary<string, GroupDetails>();
             #endregion
+        }
+
+        private static string Sanitize(string code)
+        {
+            // replace all the <'s with &lt;
+            return code.Replace("<", "&lt;");
         }
         #endregion
     }
