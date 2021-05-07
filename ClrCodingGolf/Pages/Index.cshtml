@@ -72,7 +72,7 @@
 			<br />
 		</div>
 		<div style="width:100%;">
-			<div style="font-size:24px;">SCORES</div>
+			<div style="font-size:24px;">SCORES <button style='background-color:#000;color:#fff;' onclick='sendParticipants()'>&raquo;</button></div>
 			<div id="fullScoreList"></div>
 		</div>
 	</div>
@@ -117,7 +117,7 @@
 			var user = document.getElementById('userName').value;
 
 			// ensure the name is valid
-			if (!user || user.length <= 2 || user.indexOf(',') >= 0 || user.indexOf('<') >= 0 || user.indexOf('>') >= 0 || user.indexOf(':') >= 0) {
+			if (!user || user.length <= 0 || user.indexOf(',') >= 0 || user.indexOf('<') >= 0 || user.indexOf('>') >= 0 || user.indexOf(':') >= 0) {
 				document.getElementById('userName').value = "choose your username";
 				return;
 			}
@@ -231,7 +231,7 @@
 		// display
 		for(var i=0; i<byscore.length; i++) {
 			var key = byscore[i][0];
-			output.innerHTML += (i+1) + ") " + userDictionary[key].user + " (" + userDictionary[key].score + ")" + " <button style='background-color:#000;color:#fff;' onclick='sendUpdatedCode(\"" + key + "\")'>&raquo;</button> <br>";
+			output.innerHTML += (i+1) + ") " + userDictionary[key].user + " (" + userDictionary[key].score + ")" + " <button style='background-color:#000;color:#fff;display:none;' onclick='sendUpdatedCode(\"" + key + "\")'>&raquo;</button> <br>";
 			output.innerHTML += "<pre>" + userDictionary[key].code + "</pre>";
 		}
 	}
@@ -392,7 +392,7 @@
 		// clear all the code and scores
 		for(key in userDictionary) {
 			userDictionary[key].code = "";
-			userDictionary[key].score = 0;
+			userDictionary[key].score = 3.4028235 * Math.pow(10,38);
 		}
 
 		// clear the textarea
